@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Christmas Tree - Final Deluxe</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #010103;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .input_video {
+            display: none;
+        }
+
+        /* UI */
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 15, 5, 0.7);
+            backdrop-filter: blur(15px);
+            padding: 25px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 255, 100, 0.15);
+            color: white;
+            width: 280px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            z-index: 10;
+        }
+
+        h2 {
+            margin: 0 0 15px 0;
+            font-size: 22px;
+            color: #ffeb3b;
+            text-shadow: 0 0 10px #ffeb3b;
+            text-align: center;
+        }
+
+        .instructions {
+            font-size: 13px;
+            color: #ddd;
+            line-height: 1.7;
+        }
+
+        .highlight {
+            color: #ff3333;
+            font-weight: bold;
+            background: rgba(255, 51, 51, 0.1);
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .status {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #00ff88;
+            font-style: italic;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Khung camera preview góc dưới bên phải */
+        #preview-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border-radius: 12px;
+            border: 3px solid #ffaa00;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 10;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s;
+        }
+
+        @media (max-width: 600px) {
+            #preview-container {
+                width: 130px;
+                height: 98px;
+            }
+        }
+
+        #preview-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transform: scaleX(-1);
+        }
+
+        #preview-zoom {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #ffeb3b;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            pointer-events: none;
+            white-space: nowrap;
+            font-family: monospace;
+            font-weight: bold;
+            z-index: 11;
+        }
+
+        #toggle-preview-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 12;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            line-height: 1;
+            color: white;
+            transition: background 0.2s;
+        }
+
+        #toggle-preview-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+            border-color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* Trạng thái thu gọn khi tắt hiển thị preview */
+        #preview-container.minimized {
+            width: 32px;
+            height: 32px;
+            border: 2px solid #ffaa00;
+            border-radius: 50%;
+            background: rgba(0, 15, 5, 0.85);
+        }
+
+        #preview-container.minimized #preview-canvas,
+        #preview-container.minimized #preview-zoom {
+            display: none;
+        }
+
+        #preview-container.minimized #toggle-preview-btn {
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-container">
+        <h2>🎄 Grand Galaxy Tree</h2>
+        <div class="instructions">
+            ✨ <b>120.000 hạt</b> ánh sáng.<br>
+            🖼️ <b>5 ảnh</b> đa dạng & phân bố đều.<br>
+            🔔 <b>Chuông</b> & 🎅 <b>Santa</b>.<br>
+            ❄️ <b>Tuyết rơi</b> (hạt tròn mềm).<br><br>
+            Sử dụng <b>MỘT</b> bàn tay:<br>
+            ❄️ <span class="highlight">ZOOM:</span> Chụm ngón tay cái & trỏ.<br>
+            ❄️ <span class="highlight">XOAY:</span> Di chuyển cả bàn tay.
+        </div>
+        <div id="statusText" class="status">⏳ Đang trang trí cây thông...</div>
+    </div>
+
+    <video class="input_video"></video>
+    <div id="canvas-container"></div>
+
+    <!-- Khung preview camera đối chiếu góc dưới bên phải -->
+    <div id="preview-container">
+        <button id="toggle-preview-btn" title="Bật/Tắt preview">👁️</button>
+        <canvas id="preview-canvas" width="640" height="480"></canvas>
+        <div id="preview-zoom">Zoom: 1.00</div>
+    </div>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+        attribute float aSize;
+        attribute vec3 aColor;
+        varying vec3 vColor;
+        void main() {
+            vColor = aColor;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = aSize * (300.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        varying vec3 vColor;
+        void main() {
+            float dist = distance(gl_PointCoord, vec2(0.5, 0.5));
+            if (dist > 0.5) discard;
+            float glow = (1.0 - dist * 2.0) * 0.5;
+            vec3 finalColor = vColor + vec3(glow);
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+
+    <script>
+        // --- 1. SETUP THREE.JS ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x010103, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 50;
+        camera.position.y = 5;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.autoClearColor = false;
+        container.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+        scene.add(ambientLight);
+
+        const treeContainer = new THREE.Group();
+        scene.add(treeContainer);
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.crossOrigin = 'Anonymous';
+
+
+        // --- 2. TẠO CÂY THÔNG 120.000 HẠT (GIỮ NGUYÊN) ---
+        const particleCount = 120000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+        const colorGreen = new THREE.Color(0x006400);
+        const colorDecor = [new THREE.Color(0xFF0000), new THREE.Color(0xFFD700), new THREE.Color(0xFFFFFF)];
+
+        for (let i = 0; i < particleCount; i++) {
+            const ix = i * 3;
+            const angle = i * 0.002 + Math.random() * 0.1;
+            const h = Math.random() * 40;
+            const y = h - 20;
+            const maxRadius = (40 - h) * 0.45;
+            const radius = Math.random() * maxRadius;
+
+            positions[ix] = radius * Math.cos(angle) + (Math.random() - 0.5);
+            positions[ix + 1] = y;
+            positions[ix + 2] = radius * Math.sin(angle) + (Math.random() - 0.5);
+
+            let color = colorGreen;
+            let size = 0.8;
+            const rand = Math.random();
+            if (y > 19.5 && radius < 0.5) { color = new THREE.Color(0xffffcc); size = 3.0; }
+            else if (rand > 0.93) { color = colorDecor[Math.floor(Math.random() * colorDecor.length)]; size = 1.8; }
+
+            colors[ix] = color.r; colors[ix + 1] = color.g; colors[ix + 2] = color.b;
+            sizes[i] = size;
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+        const particleMaterial = new THREE.ShaderMaterial({
+            vertexShader: document.getElementById('vertexShader').textContent,
+            fragmentShader: document.getElementById('fragmentShader').textContent,
+            blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+        });
+        const treeParticles = new THREE.Points(geometry, particleMaterial);
+        treeContainer.add(treeParticles);
+
+
+        // --- 3. TẠO BỘ TRANG TRÍ (UPDATE: ĐA DẠNG & PHÂN BỐ ĐỀU) ---
+        const decorGroup = new THREE.Group();
+        treeContainer.add(decorGroup);
+
+        // 3.1. Ảnh kỷ niệm (Đã sửa link để đa dạng ảnh)
+        const imageUrls = [
+            'https://picsum.photos/400/600?random=1', // Thêm tham số ?random= để lấy ảnh khác nhau
+            'https://picsum.photos/400/600?random=2',
+            'https://picsum.photos/400/600?random=3',
+            'https://picsum.photos/400/600?random=4',
+            'https://picsum.photos/400/600?random=5'
+        ];
+
+        imageUrls.forEach((url, index) => {
+            textureLoader.load(url, (texture) => {
+                const imgGeo = new THREE.PlaneGeometry(4, 6);
+                const imgMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+                const imgMesh = new THREE.Mesh(imgGeo, imgMat);
+
+                // --- LOGIC PHÂN BỐ VỊ TRÍ MỚI (ĐỀU HƠN) ---
+                const count = imageUrls.length;
+
+                // 1. Góc xoay: Chia đều 360 độ, thêm chút nhiễu nhẹ
+                const angle = (index / count) * Math.PI * 2 + (Math.random() * 0.4 - 0.2);
+
+                // 2. Chiều cao (h): Chia đều từ dưới lên trên (từ -12 đến 16)
+                const minH = -12; const maxH = 16;
+                let h = minH + ((maxH - minH) / (count - 1)) * index;
+                // Thêm chút nhiễu độ cao cho tự nhiên
+                h += (Math.random() - 0.5) * 2.5;
+
+                // 3. Bán kính: Tính theo độ cao h để ảnh nằm trong tán cây
+                // Công thức bán kính cây tại độ cao h (h từ -20 đến 20)
+                const rAtH = (20 - h) * 0.45;
+                const radius = rAtH * 0.85; // Đặt sâu vào 85% bán kính
+
+                imgMesh.position.set(radius * Math.cos(angle), h, radius * Math.sin(angle));
+                imgMesh.lookAt(0, h, 0); imgMesh.rotation.y += Math.PI;
+                imgMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(imgGeo), new THREE.LineBasicMaterial({ color: 0xffd700 })));
+                decorGroup.add(imgMesh);
+            });
+        });
+
+        // 3.2. Hàm hỗ trợ thêm Icon (Giữ nguyên)
+        function addIcons(url, count, size, colorTint) {
+            textureLoader.load(url, (texture) => {
+                const iconGeo = new THREE.PlaneGeometry(size, size);
+                const iconMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, color: colorTint });
+                for (let i = 0; i < count; i++) {
+                    const iconMesh = new THREE.Mesh(iconGeo, iconMat);
+                    const h = Math.random() * 35 - 15;
+                    const rAtH = (20 - (h + 15)) / 40 * 18;
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = rAtH * (0.7 + Math.random() * 0.25);
+                    iconMesh.position.set(radius * Math.cos(angle), h, radius * Math.sin(angle));
+                    iconMesh.lookAt(0, h, 0); iconMesh.rotation.z = (Math.random() - 0.5) * 0.5;
+                    decorGroup.add(iconMesh);
+                }
+            });
+        }
+        function addSpriteDecor(url, count, size) {
+            textureLoader.load(url, texture => {
+                const material = new THREE.SpriteMaterial({
+                    map: texture,
+                    transparent: true,
+                    depthWrite: false,
+                    opacity: 0.9
+                });
+
+                for (let i = 0; i < count; i++) {
+                    const sprite = new THREE.Sprite(material);
+
+                    // phân bố đều theo chiều cao
+                    const t = i / count;
+                    const h = -14 + t * 28;
+
+                    // bán kính cây tại độ cao h
+                    const r = (20 - h) * 0.45 * 0.9;
+
+                    // xoắn nhẹ
+                    const angle = t * Math.PI * 8;
+
+                    sprite.position.set(
+                        Math.cos(angle) * r,
+                        h,
+                        Math.sin(angle) * r
+                    );
+
+                    const s = size * (0.7 + Math.random() * 0.5);
+                    sprite.scale.set(s, s, s);
+
+                    decorGroup.add(sprite);
+                }
+            });
+        }
+        addSpriteDecor(
+            'https://cdn-icons-png.flaticon.com/512/3523/3523063.png', // kẹo
+            18,
+            2.2
+        );
+
+        addSpriteDecor(
+            'https://cdn-icons-png.flaticon.com/512/2454/2454263.png', // chuông
+            14,
+            2.4
+        );
+
+        addSpriteDecor(
+            'https://cdn-icons-png.flaticon.com/512/3523/3523075.png', // sao
+            10,
+            2.8
+        );
+
+
+
+        // Thêm Chuông và Santa (Giữ nguyên)
+        const bellUrl = 'https://cdn-icons-png.flaticon.com/512/2454/2454263.png';
+        const santaUrl = 'https://cdn-icons-png.flaticon.com/512/2361/2361814.png';
+        addIcons(bellUrl, 25, 2.5, 0xffffaa);
+        addIcons(santaUrl, 15, 3.0, 0xffffff);
+
+
+        // --- 4. HỆ THỐNG TUYẾT RƠI (HÌNH TRÒN MỀM - GIỮ NGUYÊN) ---
+        function createSoftCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.5, 'rgba(255,255,255,0.5)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+            const texture = new THREE.Texture(canvas); texture.needsUpdate = true; return texture;
+        }
+        function createSnowflakeTexture() {
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            ctx.translate(size / 2, size / 2);
+            ctx.fillStyle = 'white';
+            ctx.lineJoin = 'round';
+
+            function drawArm() {
+                ctx.beginPath();
+
+                ctx.moveTo(-10, 0);
+                ctx.lineTo(-10, -40);
+                ctx.lineTo(-26, -60);
+                ctx.lineTo(-10, -80);
+                ctx.lineTo(-10, -120);
+
+                ctx.lineTo(10, -120);
+                ctx.lineTo(10, -80);
+                ctx.lineTo(26, -60);
+                ctx.lineTo(10, -40);
+                ctx.lineTo(10, 0);
+
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // 6 cánh chính
+            for (let i = 0; i < 6; i++) {
+                ctx.save();
+                ctx.rotate(i * Math.PI / 3);
+                drawArm();
+                ctx.restore();
+            }
+
+            // lõi trung tâm (ngôi sao lục giác)
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = i * Math.PI / 3;
+                const r = 22;
+                const x = Math.cos(angle) * r;
+                const y = Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+
+        const snowCount = 3000;
+        const snowGeo = new THREE.BufferGeometry();
+        const snowPos = new Float32Array(snowCount * 3);
+        const snowVelocities = [];
+        for (let i = 0; i < snowCount; i++) {
+            snowPos[i * 3] = Math.random() * 200 - 100; snowPos[i * 3 + 1] = Math.random() * 150 - 50; snowPos[i * 3 + 2] = Math.random() * 200 - 100;
+            snowVelocities.push(0.05 + Math.random() * 0.15);
+        }
+        snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+        const snowMat = new THREE.PointsMaterial({
+            color: 0xffffff, size: 1.5, map: createSoftCircleTexture(), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        const snowSystem = new THREE.Points(snowGeo, snowMat);
+        scene.add(snowSystem);
+
+        // --- SNOWFLAKE SYSTEM (bông tuyết có hình) ---
+        const snowflakeCount = 600;
+
+        const snowflakeGeo = new THREE.BufferGeometry();
+        const snowflakePos = new Float32Array(snowflakeCount * 3);
+        const snowflakeRot = new Float32Array(snowflakeCount);
+        const snowflakeSpeed = [];
+
+        for (let i = 0; i < snowflakeCount; i++) {
+            snowflakePos[i * 3] = Math.random() * 200 - 100;
+            snowflakePos[i * 3 + 1] = Math.random() * 150 - 50;
+            snowflakePos[i * 3 + 2] = Math.random() * 200 - 100;
+
+            snowflakeRot[i] = Math.random() * Math.PI * 2;
+            snowflakeSpeed.push(0.02 + Math.random() * 0.08);
+        }
+
+        snowflakeGeo.setAttribute('position', new THREE.BufferAttribute(snowflakePos, 3));
+        snowflakeGeo.setAttribute('rotation', new THREE.BufferAttribute(snowflakeRot, 1));
+
+        const snowflakeMat = new THREE.PointsMaterial({
+            size: 4.5,
+            map: createSnowflakeTexture(),
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const snowflakes = new THREE.Points(snowflakeGeo, snowflakeMat);
+        scene.add(snowflakes);
+
+        function animateSnow() {
+            const positions = snowGeo.attributes.position.array;
+            for (let i = 0; i < snowCount; i++) {
+                positions[i * 3 + 1] -= snowVelocities[i];
+                if (positions[i * 3 + 1] < -50) {
+                    positions[i * 3 + 1] = 100; positions[i * 3] = Math.random() * 200 - 100; positions[i * 3 + 2] = Math.random() * 200 - 100;
+                }
+            }
+            snowGeo.attributes.position.needsUpdate = true; snowSystem.rotation.y += 0.0005;
+
+            const flakePos = snowflakeGeo.attributes.position.array;
+
+            for (let i = 0; i < snowflakeCount; i++) {
+                flakePos[i * 3 + 1] -= snowflakeSpeed[i];
+                flakePos[i * 3] += Math.sin(Date.now() * 0.001 + i) * 0.01;
+
+                if (flakePos[i * 3 + 1] < -60) {
+                    flakePos[i * 3 + 1] = 120;
+                    flakePos[i * 3] = Math.random() * 200 - 100;
+                    flakePos[i * 3 + 2] = Math.random() * 200 - 100;
+                }
+            }
+
+            snowflakeGeo.attributes.position.needsUpdate = true;
+            snowflakes.rotation.y += 0.0003;
+
+        }
+
+
+        // --- 4.1. HỆ THỐNG SANTA BAY & THẢ QUÀ (HIỆU ỨNG NỀN) ---
+        // Độ sâu Z phía sau cây thông (khoảng 25 đơn vị xa camera hơn cây)
+        const SANTA_Z = -25;
+        const FLIGHT_DURATION = 6.0; // 1 lượt bay kéo dài 6 giây
+
+        // Các biến kích thước tính theo khung nhìn màn hình
+        let visibleHeight = 86.6;
+        let visibleWidth = 100;
+        let santaWidth = 20;
+        let santaHeight = 20 * (192 / 512);
+        let giftSize = 3.5;
+
+        // Hàm tạo 2 texture xe Santa (512x192) bằng Canvas 2D: bản hướng phải và bản lật gương hướng trái
+        function createSleighTextures() {
+            // 1. Canvas gốc: xe và tuần lộc hướng sang phải (dùng khi bay trái -> phải)
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 192;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 512, 192);
+
+            // Viền phát sáng nổi bật trên nền đen
+            ctx.shadowColor = '#ffd166';
+            ctx.shadowBlur = 8;
+
+            // 1.1. Xe trượt tuyết (Sleigh)
+            ctx.strokeStyle = '#ffd166';
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(40, 150);
+            ctx.lineTo(160, 150);
+            ctx.quadraticCurveTo(185, 150, 190, 125); // mũi vểnh
+            ctx.stroke();
+
+            // Chân đỡ xe
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(70, 150); ctx.lineTo(80, 130);
+            ctx.moveTo(130, 150); ctx.lineTo(135, 130);
+            ctx.stroke();
+
+            // Thùng xe trượt đỏ
+            ctx.fillStyle = '#ff4d4d';
+            ctx.beginPath();
+            ctx.moveTo(50, 100);
+            ctx.quadraticCurveTo(45, 130, 75, 130);
+            ctx.lineTo(150, 130);
+            ctx.quadraticCurveTo(175, 130, 175, 110);
+            ctx.quadraticCurveTo(155, 115, 140, 105);
+            ctx.quadraticCurveTo(100, 115, 50, 100);
+            ctx.closePath();
+            ctx.fill();
+
+            // Viền vàng trang trí xe
+            ctx.strokeStyle = '#ffd166';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Túi quà phía sau xe
+            ctx.fillStyle = '#ffd166';
+            ctx.beginPath();
+            ctx.arc(75, 95, 22, 0, Math.PI * 2);
+            ctx.fill();
+            // Nơ túi quà đỏ
+            ctx.fillStyle = '#ff4d4d';
+            ctx.beginPath();
+            ctx.arc(75, 72, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ông già Noel (Santa)
+            // Thân áo đỏ
+            ctx.fillStyle = '#ff4d4d';
+            ctx.beginPath();
+            ctx.arc(120, 95, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Thắt lưng đen & khóa vàng
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(104, 95, 32, 6);
+            ctx.fillStyle = '#ffd166';
+            ctx.fillRect(116, 94, 8, 8);
+
+            // Khuôn mặt hồng kem
+            ctx.fillStyle = '#ffe0bd';
+            ctx.beginPath();
+            ctx.arc(125, 75, 11, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Bộ râu trắng kem mềm mại
+            ctx.fillStyle = '#fff3d6';
+            ctx.beginPath();
+            ctx.moveTo(120, 75);
+            ctx.quadraticCurveTo(138, 78, 138, 92);
+            ctx.quadraticCurveTo(126, 104, 116, 92);
+            ctx.closePath();
+            ctx.fill();
+
+            // Mũ Noel đỏ
+            ctx.fillStyle = '#ff4d4d';
+            ctx.beginPath();
+            ctx.moveTo(116, 70);
+            ctx.lineTo(135, 70);
+            ctx.lineTo(105, 52);
+            ctx.closePath();
+            ctx.fill();
+            // Viền mũ trắng kem
+            ctx.fillStyle = '#fff3d6';
+            ctx.fillRect(114, 68, 23, 5);
+            // Quả bông mũ
+            ctx.beginPath();
+            ctx.arc(104, 52, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Cánh tay Santa cầm dây cương
+            ctx.strokeStyle = '#ff4d4d';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(125, 95);
+            ctx.lineTo(145, 92);
+            ctx.stroke();
+
+            // Dây cương kéo tuần lộc
+            ctx.strokeStyle = '#ffd166';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(145, 92);
+            ctx.quadraticCurveTo(200, 110, 270, 95);
+            ctx.quadraticCurveTo(340, 105, 410, 85);
+            ctx.stroke();
+
+            // Hàm vẽ tuần lộc đang phi nước đại
+            function drawReindeer(cx, cy, isRudolph) {
+                ctx.save();
+                ctx.translate(cx, cy);
+
+                // Thân tuần lộc (màu vàng ấm)
+                ctx.fillStyle = '#ffd166';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 32, 16, -0.15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Đuôi vểnh
+                ctx.beginPath();
+                ctx.moveTo(-30, -5);
+                ctx.lineTo(-40, -14);
+                ctx.lineTo(-28, 2);
+                ctx.fill();
+
+                // Cổ & đầu vươn tới trước
+                ctx.beginPath();
+                ctx.moveTo(18, -6);
+                ctx.lineTo(36, -26);
+                ctx.lineTo(54, -20);
+                ctx.lineTo(46, -6);
+                ctx.lineTo(24, 8);
+                ctx.closePath();
+                ctx.fill();
+
+                // Tai
+                ctx.beginPath();
+                ctx.ellipse(30, -28, 7, 3, -0.6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Sừng tuần lộc (màu trắng kem)
+                ctx.strokeStyle = '#fff3d6';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(34, -26);
+                ctx.lineTo(38, -48);
+                ctx.lineTo(48, -56);
+                ctx.moveTo(38, -42);
+                ctx.lineTo(30, -52);
+                ctx.moveTo(38, -36);
+                ctx.lineTo(46, -42);
+                ctx.stroke();
+
+                // Chân trước phi tới
+                ctx.strokeStyle = '#ffd166';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(20, 8);
+                ctx.lineTo(38, 26);
+                ctx.lineTo(56, 24);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(14, 8);
+                ctx.lineTo(28, 30);
+                ctx.lineTo(44, 38);
+                ctx.stroke();
+
+                // Chân sau duỗi về sau
+                ctx.beginPath();
+                ctx.moveTo(-18, 6);
+                ctx.lineTo(-38, 24);
+                ctx.lineTo(-52, 36);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(-24, 6);
+                ctx.lineTo(-44, 18);
+                ctx.lineTo(-60, 26);
+                ctx.stroke();
+
+                // Mũi (Rudolph dẫn đầu có mũi đỏ phát sáng)
+                if (isRudolph) {
+                    ctx.shadowColor = '#ff3333';
+                    ctx.shadowBlur = 12;
+                    ctx.fillStyle = '#ff3333';
+                    ctx.beginPath();
+                    ctx.arc(55, -20, 5.5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = '#222222';
+                    ctx.beginPath();
+                    ctx.arc(54, -20, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+
+            // Vẽ 2 con tuần lộc
+            drawReindeer(290, 100, false);
+            drawReindeer(425, 90, true); // Rudolph
+
+            const sleighTexRight = new THREE.CanvasTexture(canvas);
+            sleighTexRight.needsUpdate = true;
+
+            // 1.2. Canvas lật gương ngang (dùng khi bay phải -> trái)
+            const canvasFlip = document.createElement('canvas');
+            canvasFlip.width = 512;
+            canvasFlip.height = 192;
+            const ctxFlip = canvasFlip.getContext('2d');
+            ctxFlip.translate(512, 0);
+            ctxFlip.scale(-1, 1);
+            ctxFlip.drawImage(canvas, 0, 0);
+
+            const sleighTexLeft = new THREE.CanvasTexture(canvasFlip);
+            sleighTexLeft.needsUpdate = true;
+
+            return { sleighTexRight, sleighTexLeft };
+        }
+
+        // Tạo 2 texture xe tuần lộc (phải và trái)
+        const { sleighTexRight, sleighTexLeft } = createSleighTextures();
+
+        // Tạo Sprite xe Santa và đưa trực tiếp vào scene (phía sau cây)
+        const santaMaterial = new THREE.SpriteMaterial({
+            map: sleighTexRight,
+            transparent: true,
+            depthWrite: false,
+            fog: false
+        });
+        const santaSprite = new THREE.Sprite(santaMaterial);
+        santaSprite.renderOrder = -1;
+        santaSprite.visible = false;
+        scene.add(santaSprite);
+
+        // Tạo trước 5 biến thể texture hộp quà (64x64) dùng Canvas 2D
+        function createGiftTextures() {
+            const palette = [
+                { box: '#ff4d4d', ribbon: '#ffd166' }, // Đỏ - Nơ vàng
+                { box: '#2ec4b6', ribbon: '#ff4d4d' }, // Xanh lá - Nơ đỏ
+                { box: '#4361ee', ribbon: '#fff3d6' }, // Xanh dương - Nơ kem
+                { box: '#ffd166', ribbon: '#ff4d4d' }, // Vàng ấm - Nơ đỏ
+                { box: '#b5179e', ribbon: '#ffd166' }  // Tím - Nơ vàng
+            ];
+
+            return palette.map(colors => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+
+                // Thân hộp vuông bo góc
+                ctx.fillStyle = colors.box;
+                ctx.shadowColor = colors.ribbon;
+                ctx.shadowBlur = 6;
+                const x = 10, y = 14, w = 44, h = 44, r = 4;
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+                ctx.fill();
+
+                // Ruy băng chữ thập
+                ctx.fillStyle = colors.ribbon;
+                ctx.fillRect(28, 14, 8, 44);
+                ctx.fillRect(10, 32, 44, 8);
+
+                // Nơ trên nắp hộp
+                ctx.beginPath();
+                ctx.ellipse(26, 12, 6, 3, -0.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(38, 12, 6, 3, 0.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(32, 13, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.needsUpdate = true;
+                return texture;
+            });
+        }
+
+        // Pool tối đa 15 món quà rơi
+        const MAX_GIFTS = 15;
+        const giftTextures = createGiftTextures();
+        const giftPool = [];
+        for (let i = 0; i < MAX_GIFTS; i++) {
+            const mat = new THREE.SpriteMaterial({
+                map: giftTextures[i % giftTextures.length],
+                transparent: true,
+                depthWrite: false,
+                fog: false
+            });
+            const spr = new THREE.Sprite(mat);
+            spr.renderOrder = -1;
+            spr.visible = false;
+            scene.add(spr);
+
+            giftPool.push({
+                sprite: spr,
+                active: false,
+                vx: 0,
+                vy: 0,
+                rotSpeed: 0,
+                life: 0,
+                maxLife: 3.0
+            });
+        }
+
+        // Hàm cập nhật kích thước xe Santa và quà rơi theo tỷ lệ màn hình thực tế
+        function updateSantaSize() {
+            const distance = camera.position.z - SANTA_Z; // 50 - (-25) = 75
+            visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance;
+            visibleWidth = visibleHeight * camera.aspect;
+
+            // Chiều rộng xe = 18% chiều rộng màn hình nhìn thấy
+            santaWidth = visibleWidth * 0.18;
+            santaHeight = santaWidth * (192 / 512);
+
+            // Chiều rộng quà = 3.5% chiều rộng màn hình nhìn thấy
+            giftSize = visibleWidth * 0.035;
+
+            if (santaSprite) {
+                santaSprite.scale.set(santaWidth, santaHeight, 1);
+            }
+
+            if (giftPool && giftPool.length > 0) {
+                for (let i = 0; i < giftPool.length; i++) {
+                    giftPool[i].sprite.scale.set(giftSize, giftSize, 1);
+                }
+            }
+        }
+        updateSantaSize(); // Khởi tạo kích thước ban đầu
+
+        // Pool hạt đuôi lấp lánh (Sparkle trail) 120 hạt
+        const TRAIL_COUNT = 120;
+        const trailGeo = new THREE.BufferGeometry();
+        const trailPositions = new Float32Array(TRAIL_COUNT * 3);
+        const trailColors = new Float32Array(TRAIL_COUNT * 3);
+        const trailParticles = [];
+
+        for (let i = 0; i < TRAIL_COUNT; i++) {
+            trailPositions[i * 3] = 0;
+            trailPositions[i * 3 + 1] = -9999;
+            trailPositions[i * 3 + 2] = SANTA_Z;
+            trailColors[i * 3] = 0;
+            trailColors[i * 3 + 1] = 0;
+            trailColors[i * 3 + 2] = 0;
+
+            trailParticles.push({
+                active: false,
+                life: 0,
+                maxLife: 1.0,
+                vx: 0,
+                vy: 0,
+                r: 1.0,
+                g: 0.82,
+                b: 0.4
+            });
+        }
+        trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+        trailGeo.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+
+        const trailMat = new THREE.PointsMaterial({
+            size: 2.5,
+            map: createSoftCircleTexture(), // Tái sử dụng texture tròn mềm của hệ tuyết
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            vertexColors: true
+        });
+        const trailPoints = new THREE.Points(trailGeo, trailMat);
+        trailPoints.renderOrder = -1;
+        scene.add(trailPoints);
+
+        // Máy trạng thái Santa: 'waiting' và 'flying'
+        let santaState = 'waiting';
+        let santaTimer = 3.0; // Xuất hiện lượt đầu sau 3 giây
+        let flightTime = 0;
+        let santaDirection = Math.random() < 0.5 ? 1 : -1; // 1: trái -> phải, -1: phải -> trái
+        let startX = 0;
+        let endX = 0;
+        let baseY = 22;
+        let dropGiftTimer = 0.5;
+
+        // Hàm thả quà tại vị trí xe
+        function dropGift(x, y) {
+            const gift = giftPool.find(g => !g.active);
+            if (!gift) return;
+
+            gift.sprite.material.map = giftTextures[Math.floor(Math.random() * giftTextures.length)];
+            gift.sprite.position.set(x, y - 0.8, SANTA_Z);
+            gift.sprite.scale.set(giftSize, giftSize, 1.0);
+
+            const sleighVx = (endX - startX) / FLIGHT_DURATION;
+            gift.vx = sleighVx * 0.3 + (Math.random() - 0.5) * 0.6;
+            gift.vy = -1.2 - Math.random() * 1.2;
+            gift.rotSpeed = (Math.random() - 0.5) * 3.5;
+            gift.life = 3.0;
+            gift.sprite.material.opacity = 1.0;
+            gift.sprite.material.rotation = Math.random() * Math.PI * 2;
+            gift.sprite.visible = true;
+            gift.active = true;
+        }
+
+        // Hàm cập nhật Santa, quà rơi và đuôi lấp lánh (gọi mỗi frame từ animate)
+        function animateSanta(delta) {
+            // 1. Cập nhật trạng thái xe Santa
+            if (santaState === 'waiting') {
+                santaTimer -= delta;
+                if (santaTimer <= 0) {
+                    santaState = 'flying';
+                    flightTime = 0;
+                    santaDirection = -santaDirection; // Xen kẽ hướng bay
+
+                    // Cập nhật lại kích thước và biên độ theo màn hình thực tế
+                    updateSantaSize();
+                    const halfW = visibleWidth / 2;
+
+                    // Độ cao bay ở khoảng 1/3 phía trên màn hình (ngang tầm ngọn cây)
+                    baseY = camera.position.y + visibleHeight * 0.22;
+
+                    // Thiết lập texture đúng hướng và vị trí bắt đầu/kết thúc ngoài mép màn hình
+                    if (santaDirection === 1) {
+                        // Bay từ trái sang phải: đầu tuần lộc hướng phải
+                        santaMaterial.map = sleighTexRight;
+                        startX = -halfW - santaWidth * 0.6;
+                        endX = halfW + santaWidth * 0.6;
+                    } else {
+                        // Bay từ phải sang trái: đầu tuần lộc hướng trái (lật texture, scale.x luôn dương)
+                        santaMaterial.map = sleighTexLeft;
+                        startX = halfW + santaWidth * 0.6;
+                        endX = -halfW - santaWidth * 0.6;
+                    }
+                    santaMaterial.needsUpdate = true;
+                    santaSprite.scale.set(santaWidth, santaHeight, 1);
+
+                    santaSprite.position.set(startX, baseY, SANTA_Z);
+                    santaSprite.visible = true;
+                    dropGiftTimer = 0.4 + Math.random() * 0.3;
+                }
+            } else if (santaState === 'flying') {
+                flightTime += delta;
+                const progress = Math.min(1.0, flightTime / FLIGHT_DURATION);
+
+                // Đường bay sin nhẹ
+                const currentX = startX + (endX - startX) * progress;
+                const wave = Math.sin(progress * Math.PI * 4);
+                const currentY = baseY + wave * 2.2;
+
+                santaSprite.position.set(currentX, currentY, SANTA_Z);
+
+                // Tính góc nghiêng material.rotation = Math.atan2(vy * dir, Math.abs(vx)), kẹp trong khoảng ±0.35 rad
+                const sleighVx = (endX - startX) / FLIGHT_DURATION;
+                const vy = Math.cos(progress * Math.PI * 4) * (Math.PI * 4 * 2.2 / FLIGHT_DURATION);
+                const rawRot = Math.atan2(vy * santaDirection, Math.abs(sleighVx));
+                santaSprite.material.rotation = Math.max(-0.35, Math.min(0.35, rawRot));
+
+                // Thả quà rơi
+                dropGiftTimer -= delta;
+                if (dropGiftTimer <= 0) {
+                    dropGift(currentX, currentY);
+                    dropGiftTimer = 0.4 + Math.random() * 0.3;
+                }
+
+                // Phát hạt đuôi lấp lánh ngay PHÍA SAU xe: x - dir * (nửa chiều rộng xe)
+                const tailX = currentX - santaDirection * (santaWidth * 0.5);
+                for (let k = 0; k < 2; k++) {
+                    const p = trailParticles.find(pt => !pt.active);
+                    if (p) {
+                        p.active = true;
+                        p.maxLife = 0.8 + Math.random() * 0.4;
+                        p.life = p.maxLife;
+
+                        const pIdx = trailParticles.indexOf(p);
+                        trailPositions[pIdx * 3] = tailX + (Math.random() - 0.5) * 0.5;
+                        trailPositions[pIdx * 3 + 1] = currentY - 0.2 + (Math.random() - 0.5) * 0.5;
+                        trailPositions[pIdx * 3 + 2] = SANTA_Z + (Math.random() - 0.5) * 0.5;
+
+                        // Hạt tản nhẹ về phía sau xe
+                        p.vx = -santaDirection * (1.2 + Math.random() * 1.8);
+                        p.vy = (Math.random() - 0.5) * 1.0;
+
+                        // Màu vàng ấm #ffd166 (70%) hoặc trắng kem (30%)
+                        if (Math.random() < 0.7) {
+                            p.r = 1.0; p.g = 0.82; p.b = 0.4;
+                        } else {
+                            p.r = 1.0; p.g = 1.0; p.b = 1.0;
+                        }
+
+                        trailColors[pIdx * 3] = p.r;
+                        trailColors[pIdx * 3 + 1] = p.g;
+                        trailColors[pIdx * 3 + 2] = p.b;
+                    }
+                }
+
+                // Kết thúc lượt bay
+                if (flightTime >= FLIGHT_DURATION) {
+                    santaState = 'waiting';
+                    santaSprite.visible = false;
+                    santaTimer = 5.0 + Math.random() * 5.0; // Chờ 5 - 10 giây
+                }
+            }
+
+            // 2. Cập nhật quà rơi
+            for (let i = 0; i < MAX_GIFTS; i++) {
+                const gift = giftPool[i];
+                if (gift.active) {
+                    gift.vy -= 6.5 * delta; // Trọng lực
+                    gift.sprite.position.x += gift.vx * delta;
+                    gift.sprite.position.y += gift.vy * delta;
+                    gift.sprite.material.rotation += gift.rotSpeed * delta;
+                    gift.life -= delta;
+
+                    // Mờ dần trong 0.8 giây cuối
+                    if (gift.life < 0.8) {
+                        gift.sprite.material.opacity = Math.max(0, gift.life / 0.8);
+                    }
+
+                    if (gift.life <= 0) {
+                        gift.active = false;
+                        gift.sprite.visible = false;
+                    }
+                }
+            }
+
+            // 3. Cập nhật hạt đuôi lấp lánh
+            let trailNeedsUpdate = false;
+            for (let i = 0; i < TRAIL_COUNT; i++) {
+                const p = trailParticles[i];
+                if (p.active) {
+                    p.life -= delta;
+                    if (p.life <= 0) {
+                        p.active = false;
+                        trailPositions[i * 3 + 1] = -9999;
+                        trailColors[i * 3] = 0;
+                        trailColors[i * 3 + 1] = 0;
+                        trailColors[i * 3 + 2] = 0;
+                    } else {
+                        trailPositions[i * 3] += p.vx * delta;
+                        trailPositions[i * 3 + 1] += p.vy * delta;
+                        const alpha = p.life / p.maxLife;
+                        trailColors[i * 3] = p.r * alpha;
+                        trailColors[i * 3 + 1] = p.g * alpha;
+                        trailColors[i * 3 + 2] = p.b * alpha;
+                    }
+                    trailNeedsUpdate = true;
+                }
+            }
+            if (trailNeedsUpdate) {
+                trailGeo.attributes.position.needsUpdate = true;
+                trailGeo.attributes.color.needsUpdate = true;
+            }
+        }
+
+
+        // --- 5. LOGIC ANIMATION & HAND CONTROL (GIỮ NGUYÊN) ---
+        let targetScale = 1; let currentScale = 1; let targetRotY = 0; let targetRotX = 0.1;
+
+        // Khung camera preview và các phần tử UI
+        const statusText = document.getElementById('statusText');
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const previewContainer = document.getElementById('preview-container');
+        const previewCanvas = document.getElementById('preview-canvas');
+        const previewCtx = previewCanvas.getContext('2d');
+        const previewZoom = document.getElementById('preview-zoom');
+        const togglePreviewBtn = document.getElementById('toggle-preview-btn');
+
+        togglePreviewBtn.addEventListener('click', () => {
+            previewContainer.classList.toggle('minimized');
+        });
+
+        // Bộ lọc EMA làm mượt tín hiệu (alpha = 0.35)
+        let emaDist = null;
+        let emaPalmX = null;
+        let emaPalmY = null;
+        const EMA_ALPHA = 0.35;
+
+        // Đồng hồ tính delta time
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+
+            treeContainer.rotation.y += 0.0015;
+            currentScale += (targetScale - currentScale) * 0.1;
+            treeContainer.scale.set(currentScale, currentScale, currentScale);
+            treeContainer.rotation.x += (targetRotX - treeContainer.rotation.x) * 0.08;
+            treeContainer.rotation.y += (targetRotY * 0.04);
+            animateSnow();
+            animateSanta(delta);
+            if (previewZoom) {
+                previewZoom.innerText = "Zoom: " + currentScale.toFixed(2);
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateSantaSize();
+        });
+
+        // --- 6. MEDIAPIPE HANDS (GIỮ NGUYÊN) ---
+        function onResults(results) {
+            // Luôn vẽ khung hình webcam lên canvas preview ở mọi lần gọi (kể cả khi không có tay)
+            previewCtx.save();
+            previewCtx.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusText.innerText = "🎅 Ho Ho Ho! Đã nhận diện tay."; statusText.style.color = "#ff7777";
+                previewContainer.style.borderColor = "#00ff88";
+
+                const hand = results.multiHandLandmarks[0];
+                const thumb = hand[4]; const index = hand[8]; const palm = hand[9];
+
+                // Tính khoảng cách thô và tọa độ (lật gương palmX = 1 - palm.x để điều khiển tự nhiên)
+                const rawDist = Math.sqrt(Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2));
+                const palmX = 1 - palm.x;
+                const palmY = palm.y;
+
+                // Áp dụng bộ lọc EMA làm mượt tín hiệu
+                emaDist = (emaDist === null) ? rawDist : (EMA_ALPHA * rawDist + (1 - EMA_ALPHA) * emaDist);
+                emaPalmX = (emaPalmX === null) ? palmX : (EMA_ALPHA * palmX + (1 - EMA_ALPHA) * emaPalmX);
+                emaPalmY = (emaPalmY === null) ? palmY : (EMA_ALPHA * palmY + (1 - EMA_ALPHA) * emaPalmY);
+
+                let newScale = (emaDist - 0.03) * (2.0 - 0.4) / (0.20 - 0.03) + 0.4;
+                targetScale = Math.max(0.4, Math.min(newScale, 2.5));
+                targetRotX = (emaPalmY - 0.5) * 2.5 + 0.1;
+                targetRotY = (emaPalmX - 0.5) * 3;
+
+                // Vẽ khung xương bàn tay lên canvas preview
+                drawConnectors(previewCtx, hand, HAND_CONNECTIONS, { color: '#00ff88', lineWidth: 2 });
+                drawLandmarks(previewCtx, hand, { color: '#ffeb3b', fillColor: '#ffeb3b', lineWidth: 1, radius: 3 });
+
+                // Vẽ đường thẳng nối đầu ngón cái (landmark 4) và đầu ngón trỏ (landmark 8)
+                previewCtx.beginPath();
+                previewCtx.moveTo(thumb.x * previewCanvas.width, thumb.y * previewCanvas.height);
+                previewCtx.lineTo(index.x * previewCanvas.width, index.y * previewCanvas.height);
+                previewCtx.lineWidth = 4;
+                previewCtx.strokeStyle = emaDist <= 0.06 ? '#ff3333' : '#ffeb3b';
+                previewCtx.stroke();
+            } else {
+                statusText.innerText = "Vui lòng đưa 1 bàn tay vào camera..."; statusText.style.color = "#ffaa00";
+                previewContainer.style.borderColor = "#ffaa00";
+                targetRotX = 0.1; targetRotY = 0;
+
+                // Reset bộ lọc EMA khi mất tay
+                emaDist = null;
+                emaPalmX = null;
+                emaPalmY = null;
+            }
+
+            previewCtx.restore();
+        }
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+        hands.onResults(onResults);
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({ image: videoElement }); },
+            width: 640, height: 480
+        });
+        cameraUtils.start().catch((err) => {
+            console.error("Lỗi camera:", err);
+            statusText.innerText = "❌ Không truy cập được camera. Hãy cho phép quyền camera và mở trang qua localhost hoặc HTTPS.";
+            statusText.style.color = "#ff5555";
+            if (previewContainer) {
+                previewContainer.style.display = 'none';
+            }
+        });
+
+    </script>
+</body>
+
+</html>
